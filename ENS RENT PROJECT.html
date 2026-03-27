@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ENS Rental · Web3 DApp</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+<style>
+:root {
+  --bg: #080b10;
+  --surface: #0e1219;
+  --surface2: #141922;
+  --surface3: #1c2333;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.13);
+  --accent: #4f8ef7;
+  --accent2: #7b5ea7;
+  --green: #23d18b;
+  --amber: #f0a429;
+  --red: #f06060;
+  --text: #eef0f5;
+  --muted: #7a8196;
+  --dim: #3e4558;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --glow: 0 0 24px rgba(79,142,247,0.18);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Grid bg ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(79,142,247,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,142,247,0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Glow orbs ── */
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}
+.orb-1 { width: 400px; height: 400px; background: rgba(79,142,247,0.08); top: -100px; right: -80px; }
+.orb-2 { width: 300px; height: 300px; background: rgba(123,94,167,0.07); bottom: 50px; left: -60px; }
+
+/* ── Navbar ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  backdrop-filter: blur(20px);
+  background: rgba(8,11,16,0.8);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  height: 60px;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -0.3px;
+}
+
+.nav-logo-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.nav-logo-icon svg { width: 18px; height: 18px; }
+
+.nav-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.nav-tab {
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--muted);
+  transition: all 0.2s;
+  border: none;
+  background: transparent;
+  font-family: 'Syne', sans-serif;
+}
+
+.nav-tab.active {
+  background: var(--surface3);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+
+.nav-tab:hover:not(.active) { color: var(--text); }
+
+.wallet-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.wallet-btn:hover {
+  border-color: var(--accent);
+  background: rgba(79,142,247,0.1);
+  box-shadow: var(--glow);
+}
+
+.wallet-btn .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: background 0.3s;
+  flex-shrink: 0;
+}
+
+.wallet-btn.connected .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+/* ── Wallet modal ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay.open { display: flex; }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  width: 420px;
+  max-width: 95vw;
+  overflow: hidden;
+  animation: slide-up 0.25s ease;
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title { font-size: 17px; font-weight: 700; }
+.modal-close {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  transition: all 0.15s;
+}
+.modal-close:hover { border-color: var(--border2); color: var(--text); }
+
+.wallet-options { padding: 1rem; display: flex; flex-direction: column; gap: 8px; }
+
+.wallet-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.wallet-option::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(79,142,247,0.05));
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.wallet-option:hover { border-color: var(--accent); }
+.wallet-option:hover::before { opacity: 1; }
+
+.wallet-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.wallet-name { font-weight: 700; font-size: 15px; }
+.wallet-desc { font-size: 12px; color: var(--muted); margin-top: 2px; font-family: 'DM Mono', monospace; }
+
+.wallet-arrow {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 18px;
+}
+
+/* ── Main layout ── */
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 80px 1.5rem 3rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Page sections ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Hero ── */
+.hero {
+  text-align: center;
+  padding: 5rem 0 3rem;
+}
+
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(79,142,247,0.1);
+  border: 1px solid rgba(79,142,247,0.2);
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+  color: var(--accent);
+  margin-bottom: 1.5rem;
+}
+
+.hero h1 {
+  font-size: clamp(2.2rem, 5vw, 3.4rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -1px;
+  margin-bottom: 1rem;
+}
+
+.hero h1 span {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero p {
+  font-size: 17px;
+  color: var(--muted);
+  max-width: 480px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.6;
+  font-weight: 400;
+}
+
+.hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 28px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--radius);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  border: none;
+  font-family: 'Syne', sans-serif;
+  transition: all 0.2s;
+  box-shadow: 0 4px 24px rgba(79,142,247,0.35);
+}
+
+.hero-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(79,142,247,0.4); }
+
+/* ── Stats bar ── */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin: 2rem 0;
+}
+
+.stat {
+  background: var(--surface);
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.stat-val { font-size: 22px; font-weight: 800; color: var(--text); }
+.stat-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: 'DM Mono', monospace; }
+
+/* ── Domains section ── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.section-title { font-size: 18px; font-weight: 700; }
+
+.section-actions { display: flex; gap: 8px; align-items: center; }
+
+.btn-sm {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-sm.primary:hover { background: #3a7be0; }
+
+.btn-sm:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── Domain list ── */
+.domains-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.domain-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.domain-row:hover { border-color: var(--border2); background: var(--surface2); }
+.domain-row.selected { border-color: var(--accent); background: rgba(79,142,247,0.06); }
+.domain-row.selected::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 3px 0 0 3px;
+}
+
+.domain-check {
+  width: 20px; height: 20px;
+  border-radius: 6px;
+  border: 1.5px solid var(--dim);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.domain-row.selected .domain-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.domain-check svg { display: none; }
+.domain-row.selected .domain-check svg { display: block; }
+
+.domain-name-wrap { min-width: 0; }
+.domain-name { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.domain-exp { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
+
+.domain-badge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'DM Mono', monospace;
+}
+
+.badge-active { background: rgba(35,209,139,0.12); color: var(--green); border: 1px solid rgba(35,209,139,0.2); }
+.badge-rented { background: rgba(240,164,41,0.12); color: var(--amber); border: 1px solid rgba(240,164,41,0.2); }
+.badge-expired { background: rgba(240,96,96,0.12); color: var(--red); border: 1px solid rgba(240,96,96,0.2); }
+
+.domain-price {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ── Empty / loading states ── */
+.empty-state {
+  text-align: center;
+  padding: 4rem 1rem;
+  color: var(--muted);
+}
+
+.empty-icon { font-size: 40px; margin-bottom: 1rem; opacity: 0.4; }
+.empty-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 0.5rem; }
+.empty-sub { font-size: 13px; }
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius);
+  height: 68px;
+  border: 1px solid var(--border);
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Rental panel ── */
+.rental-panel {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-top: 1rem;
+  transition: all 0.3s;
+}
+
+.rental-panel-header {
+  padding: 1rem 1.25rem;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rental-panel-body { padding: 1.25rem; }
+
+.rental-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.form-field { display: flex; flex-direction: column; gap: 6px; }
+.form-field.full { grid-column: 1 / -1; }
+
+.form-label { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; letter-spacing: 0.04em; }
+
+.form-input {
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+
+.form-input:focus { border-color: var(--accent); }
+.form-input::placeholder { color: var(--dim); }
+
+.selected-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 10px;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(79,142,247,0.15);
+  border: 1px solid rgba(79,142,247,0.25);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  color: var(--accent);
+}
+
+.cost-summary {
+  background: var(--surface3);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.cost-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+}
+
+.cost-row.total {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+
+/* ── Contract view ── */
+.contract-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.contract-card-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.contract-card-body {
+  padding: 0;
+}
+
+pre {
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+  color: #c8d3f5;
+  padding: 1.25rem;
+  overflow-x: auto;
+  line-height: 1.7;
+  background: #0a0d14;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.code-kw { color: #82aaff; }
+.code-ty { color: #c792ea; }
+.code-fn { color: #82aaff; }
+.code-str { color: #c3e88d; }
+.code-cm { color: #546e7a; font-style: italic; }
+.code-num { color: #f78c6c; }
+
+/* ── Toast ── */
+.toast-wrap {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: toast-in 0.3s ease;
+  pointer-events: auto;
+  max-width: 320px;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.toast.success { background: rgba(35,209,139,0.15); border: 1px solid rgba(35,209,139,0.3); color: var(--green); }
+.toast.error   { background: rgba(240,96,96,0.15); border: 1px solid rgba(240,96,96,0.3); color: var(--red); }
+.toast.info    { background: rgba(79,142,247,0.15); border: 1px solid rgba(79,142,247,0.3); color: var(--accent); }
+
+/* ── Wallet info bar ── */
+.wallet-bar {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.wallet-bar.show { display: flex; }
+
+.wallet-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.wallet-info { flex: 1; min-width: 0; }
+.wallet-addr { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; }
+.wallet-network { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+.wallet-balance {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--green);
+  font-weight: 500;
+}
+
+.disconnect-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.disconnect-btn:hover { border-color: var(--red); color: var(--red); }
+
+/* ── Tx modal ── */
+.tx-modal { max-width: 380px; }
+.tx-status-icon {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 1rem;
+  font-size: 28px;
+}
+.tx-pending { border: 2px solid var(--accent); animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(79,142,247,0.4); } 50% { box-shadow: 0 0 0 12px rgba(79,142,247,0); } }
+.tx-success-icon { background: rgba(35,209,139,0.15); border: 2px solid var(--green); }
+.tx-error-icon { background: rgba(240,96,96,0.15); border: 2px solid var(--red); }
+
+.spinner {
+  width: 28px; height: 28px;
+  border: 3px solid rgba(79,142,247,0.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.tx-details { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); text-align: center; margin-top: 0.5rem; word-break: break-all; }
+
+/* ── scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+
+@media (max-width: 600px) {
+  nav { padding: 0 1rem; }
+  .nav-tabs { display: none; }
+  .rental-form { grid-template-columns: 1fr; }
+  .stats-bar { grid-template-columns: 1fr; }
+  .domain-row { grid-template-columns: 28px 1fr auto; }
+  .domain-price, .domain-badge { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+
+<!-- ── Navbar ── -->
+<nav>
+  <div class="nav-logo">
+    <div class="nav-logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L4 6.5v11L12 22l8-4.5v-11L12 2z" fill="white" opacity="0.9"/>
+        <path d="M8 11l4-3 4 3v5l-4 3-4-3v-5z" fill="url(#ng)" opacity="0.8"/>
+        <defs><linearGradient id="ng" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4f8ef7"/><stop offset="100%" stop-color="#7b5ea7"/></linearGradient></defs>
+      </svg>
+    </div>
+    ENS·Rental
+  </div>
+
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('home', this)">Início</button>
+    <button class="nav-tab" onclick="showPage('domains', this)">Meus Domínios</button>
+    <button class="nav-tab" onclick="showPage('market', this)">Mercado</button>
+    <button class="nav-tab" onclick="showPage('contract', this)">Contrato</button>
+  </div>
+
+  <button class="wallet-btn" id="walletBtn" onclick="openWalletModal()">
+    <div class="dot"></div>
+    <span id="walletBtnText">Conectar Wallet</span>
+  </button>
+</nav>
+
+<!-- ── Wallet modal ── -->
+<div class="overlay" id="walletOverlay" onclick="closeWalletModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Conectar carteira</span>
+      <button class="modal-close" onclick="closeWalletModal()">✕</button>
+    </div>
+    <div class="wallet-options">
+      <div class="wallet-option" onclick="connectWallet('metamask')">
+        <div class="wallet-icon" style="background:#f6851b22;">🦊</div>
+        <div>
+          <div class="wallet-name">MetaMask</div>
+          <div class="wallet-desc">Extensão do browser</div>
+        </div>
+        <div class="wallet-arrow">›</div>
+      </div>
+      <div class="wallet-option" onclick="connectWallet('walletconnect')">
+        <div class="wallet-icon" style="background:#3b99fc22;">🔗</div>
+        <div>
+          <div class="wallet-name">WalletConnect</div>
+          <div class="wallet-desc">QR code · Mobile</div>
+        </div>
+        <div class="wallet-arrow">›</div>
+      </div>
+      <div class="wallet-option" onclick="connectWallet('coinbase')">
+        <div class="wallet-icon" style="background:#1652f022;">🔵</div>
+        <div>
+          <div class="wallet-name">Coinbase Wallet</div>
+          <div class="wallet-desc">Self-custody</div>
+        </div>
+        <div class="wallet-arrow">›</div>
+      </div>
+      <div class="wallet-option" onclick="connectWallet('demo')">
+        <div class="wallet-icon" style="background:#23d18b22;">🧪</div>
+        <div>
+          <div class="wallet-name">Modo demonstração</div>
+          <div class="wallet-desc">Dados simulados</div>
+        </div>
+        <div class="wallet-arrow">›</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tx modal ── -->
+<div class="overlay" id="txOverlay">
+  <div class="modal tx-modal" style="padding:2rem; text-align:center;">
+    <div class="tx-status-icon tx-pending" id="txIcon">
+      <div class="spinner"></div>
+    </div>
+    <div style="font-size:17px; font-weight:700; margin-bottom:0.5rem;" id="txTitle">Processando transação...</div>
+    <div class="tx-details" id="txDetails">Aguardando confirmação da rede Ethereum</div>
+    <button class="btn-sm" style="margin-top:1.5rem; width:100%;" id="txClose" onclick="closeTxModal()" disabled>Fechar</button>
+  </div>
+</div>
+
+<!-- ── Main ── -->
+<main>
+
+<!-- HOME -->
+<div class="page active" id="page-home">
+  <div class="hero">
+    <div class="hero-tag">⬡ Ethereum Name Service · NFT Rental Protocol</div>
+    <h1>Alugue seus<br/><span>domínios ENS</span></h1>
+    <p>Monetize seus nomes .eth sem abrir mão da propriedade. Contratos on-chain, seguro e sem intermediários.</p>
+    <button class="hero-cta" onclick="showPage('domains', document.querySelectorAll('.nav-tab')[1])">
+      Começar agora
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat">
+      <div class="stat-val">2.4k</div>
+      <div class="stat-lbl">domínios listados</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">Ξ 148</div>
+      <div class="stat-lbl">volume total</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">890</div>
+      <div class="stat-lbl">locatários ativos</div>
+    </div>
+  </div>
+</div>
+
+<!-- DOMAINS -->
+<div class="page" id="page-domains">
+  <div class="wallet-bar" id="walletBar">
+    <div class="wallet-avatar" id="walletAvatar">?</div>
+    <div class="wallet-info">
+      <div class="wallet-addr" id="walletAddr">—</div>
+      <div class="wallet-network" id="walletNetwork">Ethereum Mainnet</div>
+    </div>
+    <div class="wallet-balance" id="walletBalance">—</div>
+    <button class="disconnect-btn" onclick="disconnect()">Desconectar</button>
+  </div>
+
+  <div id="domains-connect-prompt" class="empty-state">
+    <div class="empty-icon">🔐</div>
+    <div class="empty-title">Conecte sua wallet</div>
+    <div class="empty-sub">Para ver seus domínios ENS, conecte uma carteira Ethereum.</div>
+    <button class="hero-cta" style="margin-top:1.5rem; font-size:14px; padding:12px 24px;" onclick="openWalletModal()">Conectar</button>
+  </div>
+
+  <div id="domains-content" style="display:none;">
+    <div class="section-header">
+      <div class="section-title">Meus domínios ENS</div>
+      <div class="section-actions">
+        <span id="selCount" style="font-size:12px; color:var(--muted); font-family:'DM Mono',monospace;">0 selecionados</span>
+        <button class="btn-sm" onclick="toggleSelectAll()">Selecionar todos</button>
+        <button class="btn-sm primary" id="rentBtn" onclick="openRentalPanel()" disabled>Listar para alugar</button>
+      </div>
+    </div>
+
+    <div class="domains-grid" id="domainsList">
+      <div class="skeleton"></div>
+      <div class="skeleton" style="opacity:.7;"></div>
+      <div class="skeleton" style="opacity:.4;"></div>
+    </div>
+
+    <!-- Rental panel -->
+    <div class="rental-panel" id="rentalPanel" style="display:none;">
+      <div class="rental-panel-header">
+        <div style="font-weight:700; font-size:15px;">⚙ Configurar aluguel</div>
+        <button class="modal-close" onclick="closeRentalPanel()">✕</button>
+      </div>
+      <div class="rental-panel-body">
+        <div class="rental-form">
+          <div class="form-field full">
+            <label class="form-label">DOMÍNIOS SELECIONADOS</label>
+            <div class="selected-tags" id="selectedTags"></div>
+          </div>
+          <div class="form-field">
+            <label class="form-label">PREÇO POR DIA (ETH)</label>
+            <input class="form-input" type="number" id="priceInput" placeholder="0.001" step="0.0001" min="0" oninput="calcCost()"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">DURAÇÃO MÁXIMA (DIAS)</label>
+            <input class="form-input" type="number" id="daysInput" placeholder="30" min="1" max="365" oninput="calcCost()"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">ENDEREÇO DO LOCATÁRIO (OPCIONAL)</label>
+            <input class="form-input" id="renterInput" placeholder="0x... (qualquer se vazio)"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">CONTRATO ENS RENTAL</label>
+            <input class="form-input" id="contractAddr" value="0x..." style="font-size:11px; color:var(--muted);"/>
+          </div>
+          <div class="form-field full">
+            <div class="cost-summary" id="costSummary">
+              <div class="cost-row"><span>Domínios</span><span id="cDomains">—</span></div>
+              <div class="cost-row"><span>Preço/dia</span><span id="cPrice">—</span></div>
+              <div class="cost-row"><span>Duração máx.</span><span id="cDays">—</span></div>
+              <div class="cost-row total"><span>Receita máx. estimada</span><span id="cTotal">—</span></div>
+            </div>
+          </div>
+          <div class="form-field full" style="display:flex; justify-content:flex-end; gap:8px;">
+            <button class="btn-sm" onclick="closeRentalPanel()">Cancelar</button>
+            <button class="btn-sm primary" onclick="submitListing()">Confirmar e assinar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MARKET -->
+<div class="page" id="page-market">
+  <div class="section-header" style="margin-bottom:1.5rem;">
+    <div class="section-title">Domínios disponíveis para alugar</div>
+    <input class="form-input" style="width:220px;" placeholder="Buscar nome .eth..." oninput="filterMarket(this.value)"/>
+  </div>
+  <div class="domains-grid" id="marketList"></div>
+</div>
+
+<!-- CONTRACT -->
+<div class="page" id="page-contract">
+  <div class="section-header" style="margin-bottom:1rem;">
+    <div class="section-title">Smart Contract · ENSRental.sol</div>
+    <div style="font-size:12px; color:var(--muted); font-family:'DM Mono',monospace;">Solidity 0.8.20 · MIT</div>
+  </div>
+
+  <div class="stats-bar" style="margin-bottom:1.25rem;">
+    <div class="stat"><div class="stat-val" style="font-size:14px; font-family:'DM Mono',monospace;">ERC-721</div><div class="stat-lbl">padrão NFT</div></div>
+    <div class="stat"><div class="stat-val" style="font-size:14px; font-family:'DM Mono',monospace;">on-chain</div><div class="stat-lbl">lógica</div></div>
+    <div class="stat"><div class="stat-val" style="font-size:14px; font-family:'DM Mono',monospace;">sem custódia</div><div class="stat-lbl">modelo</div></div>
+  </div>
+
+  <div class="contract-card">
+    <div class="contract-card-header">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="2" stroke="#4f8ef7" stroke-width="1.2"/><path d="M5 5h6M5 8h6M5 11h4" stroke="#4f8ef7" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <span style="font-size:13px; font-weight:600; color:var(--accent);">ENSRental.sol</span>
+      <button class="btn-sm" style="margin-left:auto;" onclick="copyContract()">Copiar</button>
+    </div>
+    <div class="contract-card-body">
+      <pre id="contractCode"></pre>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- ── Toast container ── -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+// ── App State ──────────────────────────────────────────────────────────────
+const state = {
+  connected: false,
+  address: null,
+  balance: null,
+  provider: null,
+  signer: null,
+  domains: [],
+  selected: new Set(),
+  walletType: null,
+};
+
+// ── Solidity Contract Source ───────────────────────────────────────────────
+const CONTRACT_SOLIDITY = `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+/// @title ENSRental
+/// @notice Aluguel de NFTs ENS on-chain sem custódia
+/// @dev O locador aprova o contrato no ENS ERC-721
+///      e lista o domínio. O locatário envia ETH e
+///      recebe o NFT pelo prazo acordado.
+
+interface IERC721 {
+    function ownerOf(uint256 id) external view returns (address);
+    function transferFrom(address from, address to, uint256 id) external;
+    function getApproved(uint256 id) external view returns (address);
+    function isApprovedForAll(address owner, address op) external view returns (bool);
+}
+
+contract ENSRental {
+
+    // ── Tipos ────────────────────────────────────────────────────
+
+    struct Listing {
+        address owner;         // dono original do NFT
+        address renter;        // locatário atual (0x0 = livre)
+        address allowedRenter; // 0x0 = qualquer um
+        uint256 pricePerDay;   // em wei
+        uint64  maxDays;       // duração máxima em dias
+        uint64  startTime;     // início do aluguel atual
+        uint64  rentedDays;    // duração do aluguel atual
+        bool    active;        // listagem aberta
+    }
+
+    // ── Storage ──────────────────────────────────────────────────
+
+    address public immutable ENS_NFT;
+
+    /// tokenId => Listing
+    mapping(uint256 => Listing) public listings;
+
+    // ── Eventos ──────────────────────────────────────────────────
+
+    event Listed(
+        uint256 indexed tokenId,
+        address indexed owner,
+        uint256 pricePerDay,
+        uint64  maxDays
+    );
+
+    event Rented(
+        uint256 indexed tokenId,
+        address indexed renter,
+        uint64  days,
+        uint256 totalPaid
+    );
+
+    event RentalEnded(uint256 indexed tokenId, address renter);
+    event Delisted(uint256 indexed tokenId);
+
+    // ── Errors ───────────────────────────────────────────────────
+
+    error NotOwner();
+    error NotApproved();
+    error AlreadyListed();
+    error NotListed();
+    error AlreadyRented();
+    error RentalActive();
+    error BadPayment();
+    error ZeroDays();
+    error TooManyDays();
+    error NotAllowed();
+
+    // ── Constructor ──────────────────────────────────────────────
+
+    constructor(address ensNft) {
+        ENS_NFT = ensNft;
+    }
+
+    // ── Locador ──────────────────────────────────────────────────
+
+    /// @notice Lista um domínio ENS para aluguel
+    function listForRent(
+        uint256 tokenId,
+        uint256 pricePerDay,
+        uint64  maxDays,
+        address allowedRenter
+    ) external {
+        IERC721 nft = IERC721(ENS_NFT);
+        if (nft.ownerOf(tokenId) != msg.sender) revert NotOwner();
+        if (
+            nft.getApproved(tokenId) != address(this) &&
+            !nft.isApprovedForAll(msg.sender, address(this))
+        ) revert NotApproved();
+        if (listings[tokenId].active) revert AlreadyListed();
+
+        listings[tokenId] = Listing({
+            owner:         msg.sender,
+            renter:        address(0),
+            allowedRenter: allowedRenter,
+            pricePerDay:   pricePerDay,
+            maxDays:       maxDays,
+            startTime:     0,
+            rentedDays:    0,
+            active:        true
+        });
+
+        emit Listed(tokenId, msg.sender, pricePerDay, maxDays);
+    }
+
+    /// @notice Remove listagem (somente se não estiver alugado)
+    function delist(uint256 tokenId) external {
+        Listing storage l = listings[tokenId];
+        if (l.owner != msg.sender) revert NotOwner();
+        if (_isActive(l))          revert RentalActive();
+        delete listings[tokenId];
+        emit Delisted(tokenId);
+    }
+
+    // ── Locatário ────────────────────────────────────────────────
+
+    /// @notice Aluga um domínio ENS pelo número de dias desejado
+    function rent(uint256 tokenId, uint64 days_) external payable {
+        if (days_ == 0) revert ZeroDays();
+
+        Listing storage l = listings[tokenId];
+        if (!l.active)                    revert NotListed();
+        if (_isActive(l))                 revert AlreadyRented();
+        if (days_ > l.maxDays)            revert TooManyDays();
+        if (
+            l.allowedRenter != address(0) &&
+            l.allowedRenter != msg.sender
+        ) revert NotAllowed();
+
+        uint256 cost = l.pricePerDay * days_;
+        if (msg.value != cost) revert BadPayment();
+
+        // Transfere NFT para locatário
+        IERC721(ENS_NFT).transferFrom(l.owner, msg.sender, tokenId);
+
+        l.renter     = msg.sender;
+        l.startTime  = uint64(block.timestamp);
+        l.rentedDays = days_;
+
+        // Paga o locador imediatamente
+        (bool ok,) = l.owner.call{value: msg.value}("");
+        require(ok, "pagamento falhou");
+
+        emit Rented(tokenId, msg.sender, days_, msg.value);
+    }
+
+    /// @notice Devolve o NFT após o prazo expirar
+    /// @dev Qualquer um pode chamar após a expiração
+    function endRental(uint256 tokenId) external {
+        Listing storage l = listings[tokenId];
+        if (l.renter == address(0)) revert NotListed();
+        if (_isActive(l))           revert RentalActive();
+
+        address renter = l.renter;
+        IERC721(ENS_NFT).transferFrom(renter, l.owner, tokenId);
+
+        l.renter     = address(0);
+        l.startTime  = 0;
+        l.rentedDays = 0;
+
+        emit RentalEnded(tokenId, renter);
+    }
+
+    // ── Views ────────────────────────────────────────────────────
+
+    function isRented(uint256 tokenId)
+        external view returns (bool)
+    {
+        return _isActive(listings[tokenId]);
+    }
+
+    function rentalExpiry(uint256 tokenId)
+        external view returns (uint64)
+    {
+        Listing storage l = listings[tokenId];
+        if (l.renter == address(0)) return 0;
+        return l.startTime + (l.rentedDays * 1 days);
+    }
+
+    function getListing(uint256 tokenId)
+        external view
+        returns (Listing memory)
+    {
+        return listings[tokenId];
+    }
+
+    // ── Interno ──────────────────────────────────────────────────
+
+    function _isActive(Listing storage l)
+        internal view returns (bool)
+    {
+        if (l.renter == address(0)) return false;
+        return block.timestamp <
+            l.startTime + (uint256(l.rentedDays) * 1 days);
+    }
+}`;
+
+// ── Mock ENS domains ──────────────────────────────────────────────────────
+function mockDomains(addr) {
+  const names = [
+    'furia', 'metaverse', 'defi-hub', 'nftvault',
+    'web3brasil', 'cryptolab', 'blocknation', 'etherspace'
+  ];
+  const statuses = ['active','active','rented','active','active','rented','active','expired'];
+  const prices = [0.002,0.005,0.001,0.008,0.0015,0.003,0.004,0.001];
+  return names.slice(0, 5 + Math.floor(Math.random()*3)).map((n,i) => ({
+    id: (BigInt(addr.slice(2,10),16) + BigInt(i)).toString(),
+    name: n + '.eth',
+    expires: new Date(Date.now() + (i+1)*90*864e5).toLocaleDateString('pt-BR'),
+    status: statuses[i],
+    price: prices[i],
+    tokenId: '0x' + Math.floor(Math.random()*0xffffffff).toString(16).padStart(8,'0'),
+  }));
+}
+
+const MARKET_DOMAINS = [
+  { name: 'punk9999.eth', price: 0.003, days: 30, owner: '0xAb12…3f90', status: 'active' },
+  { name: 'defi.eth', price: 0.015, days: 7, owner: '0xCc43…88b1', status: 'active' },
+  { name: 'nft-drop.eth', price: 0.001, days: 90, owner: '0x9911…1ac2', status: 'active' },
+  { name: 'alpha.eth', price: 0.02, days: 14, owner: '0x5500…d3f7', status: 'active' },
+  { name: 'gm.eth', price: 0.005, days: 60, owner: '0x1234…fedc', status: 'active' },
+  { name: 'wagmi.eth', price: 0.008, days: 30, owner: '0xDead…beef', status: 'active' },
+];
+
+// ── Page routing ──────────────────────────────────────────────────────────
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(id === 'domains' && !state.connected) {
+    document.getElementById('domains-connect-prompt').style.display = 'block';
+    document.getElementById('domains-content').style.display = 'none';
+  }
+  if(id === 'market') renderMarket(MARKET_DOMAINS);
+  if(id === 'contract') renderContract();
+}
+
+// ── Wallet modal ──────────────────────────────────────────────────────────
+function openWalletModal() {
+  if(state.connected) return;
+  document.getElementById('walletOverlay').classList.add('open');
+}
+
+function closeWalletModal(e) {
+  if(!e || e.target === document.getElementById('walletOverlay')) {
+    document.getElementById('walletOverlay').classList.remove('open');
+  }
+}
+
+// ── Connect logic ─────────────────────────────────────────────────────────
+async function connectWallet(type) {
+  closeWalletModal();
+  toast('info', 'Conectando ' + type + '...');
+
+  try {
+    if (type === 'demo') {
+      await sleep(900);
+      const fakeAddr = '0x' + Array.from({length:40}, () => '0123456789abcdef'[Math.floor(Math.random()*16)]).join('');
+      onConnected(fakeAddr, '2.4871', 'demo');
+      return;
+    }
+
+    if (!window.ethereum) {
+      toast('error', 'MetaMask não detectado. Tente o modo demo.');
+      return;
+    }
+
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send('eth_requestAccounts', []);
+    const signer = provider.getSigner();
+    const address = await signer.getAddress();
+    const balWei = await provider.getBalance(address);
+    const bal = parseFloat(ethers.utils.formatEther(balWei)).toFixed(4);
+
+    state.provider = provider;
+    state.signer = signer;
+    onConnected(address, bal, type);
+
+  } catch(e) {
+    toast('error', 'Conexão cancelada ou recusada.');
+  }
+}
+
+function onConnected(address, balance, type) {
+  state.connected = true;
+  state.address = address;
+  state.balance = balance;
+  state.walletType = type;
+
+  const short = address.slice(0,6) + '...' + address.slice(-4);
+
+  // Update nav btn
+  const btn = document.getElementById('walletBtn');
+  btn.classList.add('connected');
+  document.getElementById('walletBtnText').textContent = short;
+
+  // Update wallet bar
+  const bar = document.getElementById('walletBar');
+  bar.classList.add('show');
+  document.getElementById('walletAddr').textContent = short;
+  document.getElementById('walletBalance').textContent = 'Ξ ' + balance;
+  document.getElementById('walletAvatar').textContent = address.slice(2,4).toUpperCase();
+  document.getElementById('walletNetwork').textContent = type === 'demo' ? 'Demo Mode' : 'Ethereum Mainnet';
+
+  // Show domains section
+  document.getElementById('domains-connect-prompt').style.display = 'none';
+  document.getElementById('domains-content').style.display = 'block';
+
+  toast('success', 'Wallet conectada: ' + short);
+
+  // Load domains
+  loadDomains(address);
+
+  // Navigate to domains
+  showPage('domains', document.querySelectorAll('.nav-tab')[1]);
+}
+
+function disconnect() {
+  state.connected = false;
+  state.address = null;
+  state.selected.clear();
+  state.domains = [];
+
+  document.getElementById('walletBtn').classList.remove('connected');
+  document.getElementById('walletBtnText').textContent = 'Conectar Wallet';
+  document.getElementById('walletBar').classList.remove('show');
+  document.getElementById('domains-connect-prompt').style.display = 'block';
+  document.getElementById('domains-content').style.display = 'none';
+  document.getElementById('domainsList').innerHTML = '';
+  closeRentalPanel();
+  toast('info', 'Wallet desconectada.');
+}
+
+// ── Domain loading ────────────────────────────────────────────────────────
+async function loadDomains(address) {
+  const list = document.getElementById('domainsList');
+  list.innerHTML = '<div class="skeleton"></div><div class="skeleton" style="opacity:.7"></div><div class="skeleton" style="opacity:.4"></div>';
+
+  await sleep(1400);
+
+  let domains;
+  if(state.provider && state.provider._network) {
+    // Real: query ENS via provider (simplified — in prod use The Graph API)
+    domains = mockDomains(address);
+  } else {
+    domains = mockDomains(address);
+  }
+
+  state.domains = domains;
+  renderDomains(domains);
+}
+
+function renderDomains(domains) {
+  const list = document.getElementById('domainsList');
+  if(!domains.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Nenhum domínio ENS encontrado</div><div class="empty-sub">Esta carteira não possui domínios .eth</div></div>';
+    return;
+  }
+
+  list.innerHTML = domains.map(d => `
+    <div class="domain-row ${state.selected.has(d.id) ? 'selected' : ''}" id="row-${d.id}" onclick="toggleDomain('${d.id}')">
+      <div class="domain-check">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="domain-name-wrap">
+        <div class="domain-name">${d.name}</div>
+        <div class="domain-exp">Expira: ${d.expires} · token ${d.tokenId}</div>
+      </div>
+      <div class="domain-badge badge-${d.status}">${{active:'Ativo',rented:'Alugado',expired:'Expirado'}[d.status]}</div>
+      <div class="domain-price">Ξ ${d.price}/dia</div>
+    </div>
+  `).join('');
+
+  updateSelCount();
+}
+
+function toggleDomain(id) {
+  const domain = state.domains.find(d => d.id === id);
+  if(domain && domain.status !== 'active') {
+    toast('info', 'Apenas domínios ativos podem ser listados.');
+    return;
+  }
+  if(state.selected.has(id)) {
+    state.selected.delete(id);
+  } else {
+    state.selected.add(id);
+  }
+  const row = document.getElementById('row-' + id);
+  row.classList.toggle('selected', state.selected.has(id));
+  updateSelCount();
+}
+
+function toggleSelectAll() {
+  const active = state.domains.filter(d => d.status === 'active');
+  const allSelected = active.every(d => state.selected.has(d.id));
+  state.selected.clear();
+  if(!allSelected) active.forEach(d => state.selected.add(d.id));
+  renderDomains(state.domains);
+  updateSelCount();
+}
+
+function updateSelCount() {
+  const n = state.selected.size;
+  document.getElementById('selCount').textContent = n + ' selecionado' + (n !== 1 ? 's' : '');
+  document.getElementById('rentBtn').disabled = n === 0;
+  calcCost();
+}
+
+// ── Rental panel ──────────────────────────────────────────────────────────
+function openRentalPanel() {
+  const panel = document.getElementById('rentalPanel');
+  panel.style.display = 'block';
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+
+  const tags = document.getElementById('selectedTags');
+  const selected = state.domains.filter(d => state.selected.has(d.id));
+  tags.innerHTML = selected.map(d =>
+    `<div class="tag">${d.name}</div>`
+  ).join('') || '<span style="color:var(--muted);font-size:12px;font-family:\'DM Mono\',monospace;">nenhum selecionado</span>';
+
+  calcCost();
+}
+
+function closeRentalPanel() {
+  document.getElementById('rentalPanel').style.display = 'none';
+}
+
+function calcCost() {
+  const n = state.selected.size;
+  const price = parseFloat(document.getElementById('priceInput')?.value) || 0;
+  const days = parseInt(document.getElementById('daysInput')?.value) || 0;
+
+  document.getElementById('cDomains').textContent = n || '—';
+  document.getElementById('cPrice').textContent = price ? 'Ξ ' + price.toFixed(4) : '—';
+  document.getElementById('cDays').textContent = days ? days + ' dias' : '—';
+  document.getElementById('cTotal').textContent = (n && price && days)
+    ? 'Ξ ' + (n * price * days).toFixed(4)
+    : '—';
+}
+
+async function submitListing() {
+  if(!state.selected.size) { toast('error', 'Selecione ao menos um domínio.'); return; }
+  const price = parseFloat(document.getElementById('priceInput').value);
+  const days = parseInt(document.getElementById('daysInput').value);
+  if(!price || price <= 0) { toast('error', 'Insira um preço válido.'); return; }
+  if(!days || days <= 0) { toast('error', 'Insira uma duração válida.'); return; }
+
+  openTxModal('Aguardando assinatura...', 'Confirme a transação na sua wallet');
+
+  await sleep(1200);
+  updateTxModal('Enviando para a rede...', 'Tx broadcasting...');
+  await sleep(1800);
+
+  const fakeTx = '0x' + Array.from({length:64},()=>'0123456789abcdef'[Math.floor(Math.random()*16)]).join('');
+  updateTxModal('Confirmando bloco...', fakeTx);
+  await sleep(1600);
+
+  successTxModal('Listagem confirmada!', fakeTx);
+  toast('success', state.selected.size + ' domínio(s) listados para aluguel.');
+  closeRentalPanel();
+}
+
+// ── Tx Modal ──────────────────────────────────────────────────────────────
+function openTxModal(title, details) {
+  document.getElementById('txTitle').textContent = title;
+  document.getElementById('txDetails').textContent = details;
+  document.getElementById('txIcon').className = 'tx-status-icon tx-pending';
+  document.getElementById('txIcon').innerHTML = '<div class="spinner"></div>';
+  document.getElementById('txClose').disabled = true;
+  document.getElementById('txOverlay').classList.add('open');
+}
+
+function updateTxModal(title, details) {
+  document.getElementById('txTitle').textContent = title;
+  document.getElementById('txDetails').textContent = details;
+}
+
+function successTxModal(title, details) {
+  document.getElementById('txTitle').textContent = title;
+  document.getElementById('txDetails').textContent = details;
+  document.getElementById('txIcon').className = 'tx-status-icon tx-success-icon';
+  document.getElementById('txIcon').innerHTML = '✓';
+  document.getElementById('txClose').disabled = false;
+}
+
+function closeTxModal() {
+  document.getElementById('txOverlay').classList.remove('open');
+}
+
+// ── Market ────────────────────────────────────────────────────────────────
+function renderMarket(data) {
+  const list = document.getElementById('marketList');
+  list.innerHTML = data.map(d => `
+    <div class="domain-row" style="grid-template-columns: 1fr auto auto auto; cursor:default;">
+      <div class="domain-name-wrap">
+        <div class="domain-name">${d.name}</div>
+        <div class="domain-exp">Owner: ${d.owner} · máx. ${d.days} dias</div>
+      </div>
+      <div class="domain-badge badge-active">Disponível</div>
+      <div class="domain-price">Ξ ${d.price}/dia</div>
+      <button class="btn-sm primary" onclick="rentFromMarket('${d.name}', ${d.price})" style="padding:6px 12px; font-size:11px;">Alugar</button>
+    </div>
+  `).join('');
+}
+
+function filterMarket(q) {
+  const filtered = MARKET_DOMAINS.filter(d => d.name.includes(q.toLowerCase()));
+  renderMarket(filtered);
+}
+
+async function rentFromMarket(name, price) {
+  if(!state.connected) { openWalletModal(); return; }
+  openTxModal('Alugando ' + name, 'Aguardando confirmação na wallet...');
+  await sleep(1000);
+  updateTxModal('Transferindo NFT...', 'Chamando rent() no contrato ENSRental');
+  await sleep(1800);
+  const tx = '0x' + Array.from({length:64},()=>'0123456789abcdef'[Math.floor(Math.random()*16)]).join('');
+  successTxModal(name + ' alugado!', tx);
+}
+
+// ── Contract ──────────────────────────────────────────────────────────────
+function renderContract() {
+  const el = document.getElementById('contractCode');
+  el.innerHTML = CONTRACT_SOLIDITY
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    // keywords
+    .replace(/\b(pragma|solidity|contract|interface|function|mapping|struct|event|error|constructor|returns|return|public|external|view|pure|payable|internal|immutable|memory|storage|address|uint256|uint64|bool|emit|revert|delete|require|if|else|true|false)\b/g,'<span class="code-kw">$1</span>')
+    // comments
+    .replace(/(\/\/[^\n]*)/g,'<span class="code-cm">$1</span>')
+    .replace(/(\/\*\*[\s\S]*?\*\/)/g,'<span class="code-cm">$1</span>')
+    // strings
+    .replace(/"([^"]*)"/g,'"<span class="code-str">$1</span>"')
+    // numbers
+    .replace(/\b(\d+)\b/g,'<span class="code-num">$1</span>');
+}
+
+function copyContract() {
+  navigator.clipboard.writeText(CONTRACT_SOLIDITY);
+  toast('success', 'Código copiado para o clipboard!');
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function toast(type, msg) {
+  const wrap = document.getElementById('toastWrap');
+  const icons = { success:'✓', error:'✕', info:'·' };
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Init ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  renderContract();
+});
+</script>
+</body>
+</html>
