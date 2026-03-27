@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ENS Rental Pro UI</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+body{font-family:Inter;background:#0a0f1c;color:#fff;margin:0;padding:20px}
+.container{max-width:1100px;margin:auto}
+h1{font-size:32px;margin-bottom:20px}
+button{padding:10px 16px;border-radius:10px;border:none;background:#4f8ef7;color:#fff;font-weight:600;cursor:pointer}
+.card{background:#121a2b;border:1px solid #1f2a44;padding:16px;border-radius:14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+input{padding:8px;border-radius:8px;border:none;background:#1b2440;color:#fff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🚀 ENS Rental Pro</h1>
+<button onclick="connectWallet()">Conectar Wallet</button>
+<p id="wallet"></p>
+
+<h2>Seus domínios ENS</h2>
+<div id="domains"></div>
+
+<h2>Disponíveis para aluguel</h2>
+<div id="market"></div>
+</div>
+
+<script>
+const ENS_NFT="0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85";
+const CONTRACT_ADDRESS="COLOQUE_SEU_CONTRATO";
+
+let provider, signer, address;
+let listings=[];
+
+async function connectWallet(){
+ provider=new ethers.providers.Web3Provider(window.ethereum);
+ await provider.send("eth_requestAccounts",[]);
+ signer=provider.getSigner();
+ address=await signer.getAddress();
+ document.getElementById("wallet").innerText=address;
+ loadENS();
+}
+
+async function resolveName(tokenId){
+ try{
+   const res=await fetch(`https://api.ensideas.com/ens/resolve/${tokenId}`);
+   const data=await res.json();
+   return data.name || "unknown.eth";
+ }catch{return "unknown.eth"}
+}
+
+async function loadENS(){
+ const abi=["event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)"];
+ const contract=new ethers.Contract(ENS_NFT,abi,provider);
+ const events=await contract.queryFilter(contract.filters.Transfer(null,address),-2000000);
+ const ids=[...new Set(events.map(e=>e.args.tokenId.toString()))];
+
+ const container=document.getElementById("domains");
+ container.innerHTML="";
+
+ for(let id of ids){
+   const name=await resolveName(id);
+
+   const el=document.createElement("div");
+   el.className="card";
+   el.innerHTML=`
+     <div>
+       <b>${name}</b><br>
+       <small>ID: ${id}</small>
+     </div>
+     <div class="grid">
+       <input id="price-${id}" placeholder="ETH/dia" />
+       <input type="date" id="date-${id}" />
+       <button onclick="listDomain('${id}','${name}')">Alugar</button>
+     </div>
+   `;
+   container.appendChild(el);
+ }
+}
+
+function listDomain(id,name){
+ const price=document.getElementById(`price-${id}`).value;
+ const date=document.getElementById(`date-${id}`).value;
+
+ if(!price||!date){alert("preencha tudo");return}
+
+ listings.push({id,name,price,date,owner:address});
+ renderMarket();
+}
+
+function renderMarket(){
+ const container=document.getElementById("market");
+ container.innerHTML="";
+
+ listings.forEach((d,i)=>{
+   const el=document.createElement("div");
+   el.className="card";
+   el.innerHTML=`
+     <div>
+       <b>${d.name}</b><br>
+       <small>Disponível até: ${d.date}</small>
+     </div>
+     <div>
+       Ξ ${d.price}/dia
+       <button onclick="rent(${i})">Alugar</button>
+     </div>
+   `;
+   container.appendChild(el);
+ })
+}
+
+async function rent(i){
+ const d=listings[i];
+
+ const abi=["function rent(uint256,uint64) payable"];
+ const contract=new ethers.Contract(CONTRACT_ADDRESS,abi,signer);
+
+ const tx=await contract.rent(d.id,1,{value:ethers.utils.parseEther(d.price)});
+ await tx.wait();
+ alert("alugado!");
+}
+</script>
+</body>
+</html>
